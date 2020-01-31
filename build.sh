@@ -143,6 +143,8 @@ gcc_type='none'
 
 if command which dpkg-architecture &>/dev/null && dpkg-architecture -earmhf; then
     gcc_type='raspbian'
+elif command which dpkg-architecture &>/dev/null && dpkg-architecture -eppc64el; then
+    export gcc_type='powerpc'
 elif command which gcc &>/dev/null; then
     gcc_type="$(gcc --version | head -n1 | tr -s '()' ' ' | cut -f2 -d' ')"
 fi
@@ -159,6 +161,10 @@ case "$gcc_type" in
             optimize_build='yes'
         fi
         ;;
+    powerpc)
+        # gcc on PowerPC doesn't have -march. Use -mcpu and -mtune instead
+        [[ "$optimize_build" = 'yes' ]] && export CFLAGS="-mcpu=native -mtune=native -pipe -O2 -fomit-frame-pointer${CFLAGS:+ }${CFLAGS}"
+	;;
     *)
         [[ "$optimize_build" = 'yes' ]] && export CFLAGS="-march=native -pipe -O2 -fomit-frame-pointer${CFLAGS:+ }${CFLAGS}"
         ;;
@@ -441,6 +447,8 @@ build_xmlrpc() { # Build direct dependency: xmlrpc-c
 
     bold '~~~~~~~~~~~~~~~~~~~~~~~~   Building xmlrpc-c   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
     ( set +x ; cd "xmlrpc-c-$xmlrpc_tree-$xmlrpc_rev" \
+        # The included config.guess is too old for POWER9
+        && if [[ $gcc_type == 'powerpc' ]]; then curl -o config.guess 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'; fi \
         && ./configure --prefix="$build_dir" --with-libwww-ssl --disable-wininet-client --disable-curl-client --disable-libwww-client --disable-abyss-server \
              --disable-cgi-server --disable-cplusplus \
         && $make_bin $make_opts \
